@@ -1,0 +1,482 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Melbourne Suburb Auction Dashboard</title>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    :root{
+      --bg:#f6f7fb; --card:#ffffff; --text:#18212f; --muted:#667085; --line:#e7eaf1;
+      --accent:#1f6feb; --good:#157347; --warn:#b76e00; --bad:#b42318;
+    }
+    *{box-sizing:border-box}
+    body{margin:0;font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;background:var(--bg);color:var(--text)}
+    .wrap{max-width:1280px;margin:0 auto;padding:20px}
+    .topbar{display:flex;justify-content:space-between;align-items:center;gap:16px;flex-wrap:wrap;margin-bottom:18px}
+    h1{margin:0;font-size:28px}
+    .sub{color:var(--muted);font-size:14px}
+    .card{background:var(--card);border:1px solid var(--line);border-radius:18px;padding:18px;box-shadow:0 10px 24px rgba(16,24,40,.04)}
+    .grid{display:grid;gap:16px}
+    .grid-4{grid-template-columns:repeat(4,minmax(0,1fr))}
+    .grid-3{grid-template-columns:repeat(3,minmax(0,1fr))}
+    .grid-2{grid-template-columns:repeat(2,minmax(0,1fr))}
+    .metric .label{font-size:13px;color:var(--muted);margin-bottom:8px}
+    .metric .value{font-size:32px;font-weight:700}
+    .metric .delta{margin-top:6px;font-size:13px}
+    .good{color:var(--good)} .warn{color:var(--warn)} .bad{color:var(--bad)}
+    .toolbar{display:flex;gap:12px;flex-wrap:wrap;align-items:end}
+    .field{display:flex;flex-direction:column;gap:6px;min-width:160px}
+    .field label{font-size:13px;color:var(--muted)}
+    .field input,.field select, .field button{
+      height:42px;border-radius:12px;border:1px solid var(--line);padding:0 12px;background:#fff;font-size:14px
+    }
+    .field button,.btn{background:var(--accent);color:#fff;border:none;cursor:pointer}
+    .btn.secondary{background:#eef4ff;color:#1f4db7}
+    .btn.ghost{background:#fff;color:var(--text);border:1px solid var(--line)}
+    .auth{display:flex;gap:10px;flex-wrap:wrap;align-items:end}
+    canvas{width:100% !important;height:320px !important}
+    table{width:100%;border-collapse:collapse;font-size:14px}
+    th,td{padding:10px 8px;border-bottom:1px solid var(--line);text-align:left}
+    th{color:var(--muted);font-weight:600;font-size:13px}
+    .pill{display:inline-block;padding:4px 10px;border-radius:999px;font-size:12px;font-weight:600;background:#eef4ff;color:#1f4db7}
+    .status{font-size:14px;color:var(--muted)}
+    .section-title{margin:0 0 12px 0;font-size:18px}
+    .hidden{display:none}
+    .footer-note{color:var(--muted);font-size:12px;margin-top:8px}
+    @media (max-width: 980px){
+      .grid-4,.grid-3,.grid-2{grid-template-columns:1fr}
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="topbar">
+      <div>
+        <h1>Melbourne Suburb Auction Dashboard</h1>
+        <div class="sub">Reads from <strong>auction_suburb_history</strong> and <strong>auction_weekly_summary</strong> in Supabase.</div>
+      </div>
+      <div class="card" style="padding:12px 14px">
+        <div id="authStatus" class="status">Not signed in</div>
+      </div>
+    </div>
+
+    <div id="authCard" class="card" style="margin-bottom:16px">
+      <h3 class="section-title">Sign in</h3>
+      <div class="auth">
+        <div class="field">
+          <label>Email</label>
+          <input id="email" type="email" placeholder="you@example.com" />
+        </div>
+        <div class="field">
+          <label>Password</label>
+          <input id="password" type="password" placeholder="Password" />
+        </div>
+        <div class="field"><label>&nbsp;</label><button id="signInBtn">Sign In</button></div>
+        <div class="field"><label>&nbsp;</label><button id="signUpBtn" class="btn secondary">Create Account</button></div>
+        <div class="field"><label>&nbsp;</label><button id="resetBtn" class="btn ghost">Reset Password</button></div>
+        <div class="field hidden" id="signOutWrap"><label>&nbsp;</label><button id="signOutBtn" class="btn ghost">Sign Out</button></div>
+      </div>
+      <div class="footer-note">Use the same email account you already set up in Supabase. This page hides the Supabase connection details.</div>
+      <div id="authMsg" class="footer-note"></div>
+    </div>
+
+    <div id="app" class="hidden">
+      <div class="card" style="margin-bottom:16px">
+        <div class="toolbar">
+          <div class="field">
+            <label>Suburb</label>
+            <select id="suburbFilter"></select>
+          </div>
+          <div class="field">
+            <label>Property type</label>
+            <select id="propertyTypeFilter">
+              <option value="all">All</option>
+              <option value="house">House</option>
+              <option value="unit">Unit</option>
+              <option value="mixed">Mixed</option>
+            </select>
+          </div>
+          <div class="field">
+            <label>Weeks to show</label>
+            <select id="weeksFilter">
+              <option value="4">4</option>
+              <option value="8">8</option>
+              <option value="12">12</option>
+            </select>
+          </div>
+          <div class="field">
+            <label>Search suburb</label>
+            <input id="searchSuburb" type="text" placeholder="Type to narrow list" />
+          </div>
+          <div class="field">
+            <label>&nbsp;</label>
+            <button id="refreshBtn">Refresh</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="grid grid-4" style="margin-bottom:16px">
+        <div class="card metric">
+          <div class="label">Latest clearance</div>
+          <div class="value" id="latestClearance">—</div>
+          <div class="delta" id="clearanceDelta"></div>
+        </div>
+        <div class="card metric">
+          <div class="label">Latest median</div>
+          <div class="value" id="latestMedian">—</div>
+          <div class="delta" id="medianDelta"></div>
+        </div>
+        <div class="card metric">
+          <div class="label">Latest auctions</div>
+          <div class="value" id="latestAuctions">—</div>
+          <div class="delta" id="auctionsDelta"></div>
+        </div>
+        <div class="card metric">
+          <div class="label">Momentum score</div>
+          <div class="value" id="momentumScore">—</div>
+          <div class="delta" id="momentumLabel"></div>
+        </div>
+      </div>
+
+      <div class="grid grid-2" style="margin-bottom:16px">
+        <div class="card">
+          <h3 class="section-title">Suburb trend</h3>
+          <canvas id="trendChart"></canvas>
+        </div>
+        <div class="card">
+          <h3 class="section-title">Melbourne market trend</h3>
+          <canvas id="marketChart"></canvas>
+        </div>
+      </div>
+
+      <div class="grid grid-2">
+        <div class="card">
+          <h3 class="section-title">Latest suburb rows</h3>
+          <table>
+            <thead>
+              <tr>
+                <th>Week</th>
+                <th>Suburb</th>
+                <th>Type</th>
+                <th>Auctions</th>
+                <th>Sold</th>
+                <th>Clearance</th>
+                <th>Median</th>
+              </tr>
+            </thead>
+            <tbody id="suburbTableBody"></tbody>
+          </table>
+        </div>
+        <div class="card">
+          <h3 class="section-title">Strength table</h3>
+          <table>
+            <thead>
+              <tr>
+                <th>Suburb</th>
+                <th>Latest clearance</th>
+                <th>4-week avg</th>
+                <th>Trend</th>
+                <th>Median</th>
+              </tr>
+            </thead>
+            <tbody id="strengthTableBody"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+<script>
+const SUPABASE_URL = "https://rygckxqyqaogsedmpbpr.supabase.co";
+const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJ5Z2NreHF5cWFvZ3NlZG1wYnByIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzY4MzM1NTIsImV4cCI6MjA5MjQwOTU1Mn0.xhExNIPvHYvlyqyaCPeWNGME4X8TZc2S7gCy0t4HqpQ";
+const client = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+const $ = (id) => document.getElementById(id);
+let suburbRows = [];
+let marketRows = [];
+let trendChart, marketChart;
+
+function fmtPct(val){
+  if(val === null || val === undefined || Number.isNaN(val)) return "—";
+  return `${Number(val).toFixed(1)}%`;
+}
+function fmtMoney(val){
+  if(val === null || val === undefined || Number.isNaN(val)) return "—";
+  return new Intl.NumberFormat('en-AU', {style:'currency', currency:'AUD', maximumFractionDigits:0}).format(val);
+}
+function calcClearance(r){
+  if(!r || !r.auctions) return null;
+  return (Number(r.sold || 0) / Number(r.auctions || 0)) * 100;
+}
+function deltaText(current, previous, suffix="", money=false){
+  if(current == null || previous == null) return "";
+  const diff = Number(current) - Number(previous);
+  const cls = diff > 0 ? "good" : diff < 0 ? "bad" : "warn";
+  const val = money ? fmtMoney(diff) : `${diff.toFixed(1)}${suffix}`;
+  return `<span class="${cls}">${diff > 0 ? "↑" : diff < 0 ? "↓" : "→"} ${val} vs prior week</span>`;
+}
+function getMomentum(latest, prior){
+  let score = 0;
+  const lc = calcClearance(latest), pc = calcClearance(prior);
+  if(lc != null && pc != null){
+    if(lc > pc) score += 1;
+    if(lc < pc) score -= 1;
+  }
+  if(latest && prior){
+    if((latest.median_price || 0) > (prior.median_price || 0)) score += 1;
+    if((latest.median_price || 0) < (prior.median_price || 0)) score -= 1;
+    if((latest.sold || 0) > (prior.sold || 0)) score += 1;
+    if((latest.sold || 0) < (prior.sold || 0)) score -= 1;
+  }
+  return score;
+}
+function momentumLabel(score){
+  if(score >= 2) return {text:"Strengthening", cls:"good"};
+  if(score <= -2) return {text:"Weakening", cls:"bad"};
+  return {text:"Neutral", cls:"warn"};
+}
+function unique(arr){ return [...new Set(arr)]; }
+
+async function updateAuthUI(){
+  const { data: { session } } = await client.auth.getSession();
+  if(session?.user){
+    $("authStatus").textContent = `Signed in as ${session.user.email}`;
+    $("authMsg").textContent = "";
+    $("app").classList.remove("hidden");
+    $("signOutWrap").classList.remove("hidden");
+    await loadData();
+  } else {
+    $("authStatus").textContent = "Not signed in";
+    $("app").classList.add("hidden");
+    $("signOutWrap").classList.add("hidden");
+  }
+}
+
+async function signIn(){
+  const email = $("email").value.trim();
+  const password = $("password").value;
+  const { error } = await client.auth.signInWithPassword({ email, password });
+  $("authMsg").textContent = error ? error.message : "Signed in.";
+  await updateAuthUI();
+}
+async function signUp(){
+  const email = $("email").value.trim();
+  const password = $("password").value;
+  const { error } = await client.auth.signUp({ email, password });
+  $("authMsg").textContent = error ? error.message : "Account created. Check email only if confirmation is enabled.";
+}
+async function resetPassword(){
+  const email = $("email").value.trim();
+  const { error } = await client.auth.resetPasswordForEmail(email, {
+    redirectTo: window.location.href
+  });
+  $("authMsg").textContent = error ? error.message : "Password reset email sent.";
+}
+async function signOut(){
+  await client.auth.signOut();
+  $("authMsg").textContent = "Signed out.";
+  await updateAuthUI();
+}
+
+async function loadData(){
+  $("authMsg").textContent = "Loading data...";
+  const weeks = Number($("weeksFilter").value || 4);
+  const suburbFilter = $("suburbFilter").value || "all";
+  const typeFilter = $("propertyTypeFilter").value || "all";
+
+  let q = client.from("auction_suburb_history")
+    .select("*")
+    .order("week_ending", { ascending: false })
+    .limit(2000);
+
+  const { data: suburbData, error: suburbError } = await q;
+  if(suburbError){
+    $("authMsg").textContent = suburbError.message;
+    return;
+  }
+
+  let mq = client.from("auction_weekly_summary")
+    .select("*")
+    .order("week_ending", { ascending: false })
+    .limit(100);
+
+  const { data: marketData, error: marketError } = await mq;
+  if(marketError){
+    $("authMsg").textContent = marketError.message;
+    return;
+  }
+
+  suburbRows = suburbData || [];
+  marketRows = marketData || [];
+
+  populateSuburbFilter(suburbRows);
+
+  let rows = suburbRows.slice();
+  const searchText = $("searchSuburb").value.trim().toLowerCase();
+  if(suburbFilter !== "all") rows = rows.filter(r => r.suburb === suburbFilter);
+  if(typeFilter !== "all") rows = rows.filter(r => (r.property_type || "").toLowerCase() === typeFilter);
+  if(searchText) rows = rows.filter(r => (r.suburb || "").toLowerCase().includes(searchText));
+
+  const uniqueWeeks = unique(rows.map(r => r.week_ending)).sort().reverse().slice(0, weeks);
+  rows = rows.filter(r => uniqueWeeks.includes(r.week_ending));
+  renderDashboard(rows, marketRows.slice().sort((a,b) => a.week_ending < b.week_ending ? -1 : 1));
+  $("authMsg").textContent = `Loaded ${rows.length} suburb rows.`;
+}
+
+function populateSuburbFilter(rows){
+  const current = $("suburbFilter").value || "all";
+  const suburbs = unique(rows.map(r => r.suburb)).sort((a,b) => a.localeCompare(b));
+  $("suburbFilter").innerHTML = `<option value="all">All suburbs</option>` + suburbs.map(s => `<option value="${s}">${s}</option>`).join("");
+  if(suburbs.includes(current)) $("suburbFilter").value = current;
+}
+
+function renderDashboard(rows, marketRowsAsc){
+  const groupedByWeek = {};
+  rows.forEach(r => {
+    groupedByWeek[r.week_ending] ||= [];
+    groupedByWeek[r.week_ending].push(r);
+  });
+  const weeks = Object.keys(groupedByWeek).sort();
+  const series = weeks.map(w => {
+    const rs = groupedByWeek[w];
+    const auctions = rs.reduce((a,b)=>a+Number(b.auctions||0),0);
+    const sold = rs.reduce((a,b)=>a+Number(b.sold||0),0);
+    const medianAvg = rs.length ? rs.reduce((a,b)=>a+Number(b.median_price||0),0)/rs.length : null;
+    return { week_ending:w, auctions, sold, clearance: auctions ? sold/auctions*100 : null, median_price: medianAvg };
+  });
+  const latest = series[series.length-1] || null;
+  const prior = series[series.length-2] || null;
+
+  $("latestClearance").textContent = latest ? fmtPct(latest.clearance) : "—";
+  $("latestMedian").textContent = latest ? fmtMoney(latest.median_price) : "—";
+  $("latestAuctions").textContent = latest ? latest.auctions : "—";
+  const score = latest && prior ? getMomentum(latest, prior) : 0;
+  const ml = momentumLabel(score);
+  $("momentumScore").textContent = `${score > 0 ? "+" : ""}${score}`;
+  $("momentumLabel").innerHTML = `<span class="${ml.cls}">${ml.text}</span>`;
+  $("clearanceDelta").innerHTML = latest && prior ? deltaText(latest.clearance, prior.clearance, "%") : "";
+  $("medianDelta").innerHTML = latest && prior ? deltaText(latest.median_price, prior.median_price, "", true) : "";
+  $("auctionsDelta").innerHTML = latest && prior ? deltaText(latest.auctions, prior.auctions) : "";
+
+  renderTrendChart(series);
+  renderMarketChart(marketRowsAsc);
+  renderSuburbTable(rows);
+  renderStrengthTable(rows);
+}
+
+function renderTrendChart(series){
+  const labels = series.map(r => r.week_ending);
+  const clearanceData = series.map(r => r.clearance);
+  const medianData = series.map(r => r.median_price);
+
+  if(trendChart) trendChart.destroy();
+  trendChart = new Chart($("trendChart"), {
+    type: "line",
+    data: {
+      labels,
+      datasets: [
+        { label: "Clearance %", data: clearanceData, yAxisID:"y", tension:.25 },
+        { label: "Median price", data: medianData, yAxisID:"y1", tension:.25 }
+      ]
+    },
+    options: {
+      responsive:true,
+      maintainAspectRatio:false,
+      interaction:{mode:"index", intersect:false},
+      scales:{
+        y:{position:"left", ticks:{callback:(v)=>v + "%"}},
+        y1:{position:"right", grid:{drawOnChartArea:false}, ticks:{callback:(v)=>"$" + Number(v).toLocaleString()}}
+      }
+    }
+  });
+}
+
+function renderMarketChart(rows){
+  const labels = rows.map(r => r.week_ending);
+  const soldData = rows.map(r => r.sold);
+  const auctionsData = rows.map(r => r.auctions);
+  if(marketChart) marketChart.destroy();
+  marketChart = new Chart($("marketChart"), {
+    type:"bar",
+    data:{
+      labels,
+      datasets:[
+        { label:"Sold", data:soldData },
+        { label:"Auctions", data:auctionsData }
+      ]
+    },
+    options:{
+      responsive:true,
+      maintainAspectRatio:false,
+      interaction:{mode:"index", intersect:false}
+    }
+  });
+}
+
+function renderSuburbTable(rows){
+  const body = $("suburbTableBody");
+  const sorted = rows.slice().sort((a,b) => String(b.week_ending).localeCompare(String(a.week_ending)) || String(a.suburb).localeCompare(String(b.suburb)));
+  body.innerHTML = sorted.slice(0, 20).map(r => `
+    <tr>
+      <td>${r.week_ending}</td>
+      <td>${r.suburb}</td>
+      <td><span class="pill">${r.property_type}</span></td>
+      <td>${r.auctions ?? "—"}</td>
+      <td>${r.sold ?? "—"}</td>
+      <td>${fmtPct(calcClearance(r))}</td>
+      <td>${fmtMoney(r.median_price)}</td>
+    </tr>
+  `).join("");
+}
+
+function renderStrengthTable(rows){
+  const bySuburb = {};
+  rows.forEach(r => {
+    bySuburb[r.suburb] ||= [];
+    bySuburb[r.suburb].push(r);
+  });
+  const stats = Object.entries(bySuburb).map(([suburb, rs]) => {
+    rs.sort((a,b)=> String(a.week_ending).localeCompare(String(b.week_ending)));
+    const latest = rs[rs.length-1];
+    const prior = rs[rs.length-2];
+    const latestC = calcClearance(latest);
+    const avg4 = rs.length ? rs.reduce((a,b)=>a+(calcClearance(b)||0),0)/rs.length : null;
+    const score = prior ? getMomentum(
+      { sold: latest.sold, auctions: latest.auctions, median_price: latest.median_price },
+      { sold: prior.sold, auctions: prior.auctions, median_price: prior.median_price }
+    ) : 0;
+    return { suburb, latestC, avg4, score, median: latest?.median_price };
+  }).sort((a,b)=> (b.score - a.score) || ((b.latestC||0) - (a.latestC||0)));
+
+  $("strengthTableBody").innerHTML = stats.slice(0, 20).map(s => {
+    const ml = momentumLabel(s.score);
+    return `
+      <tr>
+        <td>${s.suburb}</td>
+        <td>${fmtPct(s.latestC)}</td>
+        <td>${fmtPct(s.avg4)}</td>
+        <td><span class="${ml.cls}">${ml.text}</span></td>
+        <td>${fmtMoney(s.median)}</td>
+      </tr>
+    `;
+  }).join("");
+}
+
+$("signInBtn").addEventListener("click", signIn);
+$("signUpBtn").addEventListener("click", signUp);
+$("resetBtn").addEventListener("click", resetPassword);
+$("signOutBtn").addEventListener("click", signOut);
+$("refreshBtn").addEventListener("click", loadData);
+$("suburbFilter").addEventListener("change", loadData);
+$("propertyTypeFilter").addEventListener("change", loadData);
+$("weeksFilter").addEventListener("change", loadData);
+$("searchSuburb").addEventListener("input", () => { clearTimeout(window._searchTimer); window._searchTimer = setTimeout(loadData, 250); });
+
+client.auth.onAuthStateChange(async () => { await updateAuthUI(); });
+updateAuthUI();
+</script>
+</body>
+</html>
