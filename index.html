@@ -1,0 +1,898 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Melbourne Auction Tracker + Supabase</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    :root{
+      --bg:#f4f7fb; --card:#ffffff; --line:#d9e1ea; --text:#1f2a37; --muted:#6b7788;
+      --accent:#0f4c81; --accent2:#174f3b; --good:#176f45; --warn:#9a6a00; --bad:#a33131;
+      --soft:#f8fafc;
+    }
+    *{box-sizing:border-box}
+    body{margin:0;font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;background:var(--bg);color:var(--text)}
+    .wrap{max-width:1360px;margin:0 auto;padding:24px}
+    .hero,.grid-2,.grid-3,.grid-main,.stats,.form-grid,.actions{display:grid;gap:16px}
+    .hero{grid-template-columns:1.6fr 1fr}
+    .grid-main{grid-template-columns:1.3fr 1fr}
+    .grid-2{grid-template-columns:1fr 1fr}
+    .grid-3{grid-template-columns:repeat(3,1fr)}
+    .stats{grid-template-columns:repeat(4,1fr);margin-top:16px}
+    .form-grid{grid-template-columns:repeat(4,1fr)}
+    .actions{grid-template-columns:repeat(3,1fr)}
+    .card{background:var(--card);border:1px solid var(--line);border-radius:18px;padding:20px;box-shadow:0 8px 24px rgba(10,20,40,.05)}
+    h1{margin:0 0 8px;font-size:30px}
+    h2{margin:0 0 14px;font-size:20px}
+    h3{margin:0 0 10px;font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+    p{margin:0;line-height:1.55}
+    .sub{color:var(--muted)}
+    .pills{display:flex;flex-wrap:wrap;gap:10px;margin-top:14px}
+    .pill,.badge{display:inline-block;border:1px solid var(--line);border-radius:999px;padding:8px 12px;background:var(--soft);font-size:13px}
+    .badge{padding:6px 10px;font-weight:700}
+    .ok{background:#eaf7ef;color:var(--good);border-color:#d3ebdb}
+    .warn{background:#fff5df;color:var(--warn);border-color:#f4e1a9}
+    .bad{background:#fdeaea;color:var(--bad);border-color:#f2c8c8}
+    .stat{border:1px solid var(--line);border-radius:14px;background:#fbfcfe;padding:14px}
+    .label{font-size:12px;color:var(--muted)}
+    .value{font-size:28px;font-weight:750;margin-top:6px}
+    label{display:block;font-size:12px;color:var(--muted);margin-bottom:6px}
+    input,select,button,textarea{width:100%;padding:12px;border:1px solid var(--line);border-radius:12px;font:inherit;background:white}
+    button{background:var(--accent);color:#fff;border:none;font-weight:650;cursor:pointer}
+    button.secondary{background:#fff;color:var(--text);border:1px solid var(--line)}
+    button.ghost{background:#f8fafc;color:var(--text);border:1px solid var(--line)}
+    textarea{min-height:96px;resize:vertical}
+    table{width:100%;border-collapse:collapse;font-size:14px}
+    th,td{padding:11px 10px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top}
+    th{color:var(--muted);font-weight:650}
+    .list{display:grid;gap:12px}
+    .row{border:1px solid var(--line);border-radius:14px;background:#fbfcfe;padding:12px}
+    .row strong{display:block;margin-bottom:4px}
+    .small{font-size:13px;color:var(--muted)}
+    .inline-note{margin-top:10px;font-size:12px;color:var(--muted)}
+    .mono{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:12px;white-space:pre-wrap;background:#0b1220;color:#e7eef9;border-radius:14px;padding:14px;overflow:auto}
+    .toolbar{display:flex;justify-content:space-between;gap:12px;align-items:center;margin-bottom:10px;flex-wrap:wrap}
+    .hidden{display:none}
+    .statusline{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:12px}
+    .statusdot{width:10px;height:10px;border-radius:999px;background:#adb5bd}
+    .statusdot.connected{background:#2e9e5b}
+    .statusdot.local{background:#9a6a00}
+    .section-gap{margin-top:18px}
+    .right{display:flex;gap:8px;flex-wrap:wrap}
+    .footer-note{font-size:12px;color:var(--muted);margin-top:10px}
+    canvas{max-width:100%}
+    @media (max-width:1100px){
+      .hero,.grid-main,.grid-2,.grid-3{grid-template-columns:1fr}
+      .stats{grid-template-columns:1fr 1fr}
+      .form-grid{grid-template-columns:1fr 1fr}
+    }
+    @media (max-width:700px){
+      .wrap{padding:14px}
+      .stats,.form-grid,.actions{grid-template-columns:1fr}
+      h1{font-size:24px}
+    }
+  </style>
+</head>
+<body>
+<div class="wrap">
+  <div class="hero">
+    <div class="card">
+      <h1>Melbourne Auction Tracker</h1>
+      <p class="sub">Track your own weekly auction results by suburb, save a property watchlist, and store everything in Supabase. This file also works in local mode before you connect the database.</p>
+      <div class="pills">
+        <span class="pill">Weekly auction entries</span>
+        <span class="pill">Suburb charts</span>
+        <span class="pill">Watchlist</span>
+        <span class="pill">Supabase or local mode</span>
+      </div>
+      <div class="stats">
+        <div class="stat"><div class="label">Storage Mode</div><div class="value" id="storageModeText">Local</div></div>
+        <div class="stat"><div class="label">4-Week Avg Clearance</div><div class="value" id="avgClearanceText">—</div></div>
+        <div class="stat"><div class="label">Latest Week</div><div class="value" id="latestWeekText">—</div></div>
+        <div class="stat"><div class="label">Watchlist Count</div><div class="value" id="watchCountText">0</div></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3>Connection</h3>
+      <div class="form-grid" style="grid-template-columns:1fr;">
+        <div>
+          <label>Supabase URL</label>
+          <input id="supabaseUrl" placeholder="https://your-project.supabase.co" value="https://rygckxqyqaogsedmpbpr.supabase.co" />
+        </div>
+        <div>
+          <label>Publishable / anon key</label>
+          <input id="supabaseKey" placeholder="Paste your publishable or legacy anon key" value="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJ5Z2NreHF5cWFvZ3NlZG1wYnByIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzY4MzM1NTIsImV4cCI6MjA5MjQwOTU1Mn0.xhExNIPvHYvlyqyaCPeWNGME4X8TZc2S7gCy0t4HqpQ" />
+        </div>
+        <div>
+          <label>Email for magic-link sign in</label>
+          <input id="authEmail" placeholder="you@example.com" />
+        </div>
+      </div>
+      <div class="actions section-gap">
+        <button id="saveConfigBtn">Save Config</button>
+        <button class="secondary" id="connectBtn">Connect</button>
+        <button class="ghost" id="sendMagicLinkBtn">Send Magic Link</button>
+      </div>
+      <div class="statusline">
+        <span class="statusdot local" id="statusDot"></span>
+        <span class="small" id="connectionStatus">Running in local mode</span>
+        <span class="badge warn" id="authStateBadge">Not signed in</span>
+      </div>
+      <div class="inline-note">Use local mode first, then connect Supabase when ready. Auth is recommended if you want private per-user records with RLS.</div>
+    </div>
+  </div>
+
+  <div class="grid-main section-gap">
+    <div class="card">
+      <div class="toolbar">
+        <div>
+          <h2 style="margin-bottom:4px;">Weekly Auction Results</h2>
+          <div class="small">Enter one row per suburb per week.</div>
+        </div>
+        <div class="right">
+          <button class="secondary" id="seedDemoBtn">Load Demo Rows</button>
+          <button class="secondary" id="exportCsvBtn">Export CSV</button>
+          <button class="secondary" onclick="window.print()">Print</button>
+        </div>
+      </div>
+      <div class="form-grid">
+        <div>
+          <label>Week ending</label>
+          <input id="weekEnding" type="date" />
+        </div>
+        <div>
+          <label>Suburb</label>
+          <input id="suburbInput" placeholder="Reservoir" />
+        </div>
+        <div>
+          <label>Property type</label>
+          <select id="propertyType">
+            <option value="house">House</option>
+            <option value="unit">Unit</option>
+            <option value="townhouse">Townhouse</option>
+            <option value="mixed" selected>Mixed</option>
+          </select>
+        </div>
+        <div>
+          <label>Auction count</label>
+          <input id="auctionCount" type="number" min="0" value="0" />
+        </div>
+        <div>
+          <label>Sold count</label>
+          <input id="soldCount" type="number" min="0" value="0" />
+        </div>
+        <div>
+          <label>Median price</label>
+          <input id="medianPrice" type="number" min="0" placeholder="920000" />
+        </div>
+        <div>
+          <label>Source</label>
+          <input id="sourceInput" placeholder="Domain / agent notes / your tally" />
+        </div>
+        <div>
+          <label>Notes</label>
+          <input id="auctionNotes" placeholder="Strong turnout, passed in stock, etc." />
+        </div>
+      </div>
+      <div class="actions section-gap">
+        <button id="saveAuctionBtn">Save Auction Entry</button>
+        <button class="secondary" id="refreshBtn">Refresh Data</button>
+        <button class="ghost" id="clearAuctionFormBtn">Clear Form</button>
+      </div>
+      <div class="footer-note">Clearance rate is calculated as sold ÷ auctions. You can use this as your weekly leading indicator before medians catch up.</div>
+    </div>
+
+    <div class="card">
+      <h2>Suburb View</h2>
+      <div class="form-grid" style="grid-template-columns:1fr 1fr;">
+        <div>
+          <label>Suburb filter</label>
+          <select id="suburbFilter"></select>
+        </div>
+        <div>
+          <label>Weeks to show</label>
+          <select id="weeksLookback">
+            <option value="6">6</option>
+            <option value="12" selected>12</option>
+            <option value="24">24</option>
+            <option value="52">52</option>
+          </select>
+        </div>
+      </div>
+      <div class="list section-gap" id="suburbSummary"></div>
+    </div>
+  </div>
+
+  <div class="grid-2 section-gap">
+    <div class="card">
+      <h2>Clearance Trend</h2>
+      <canvas id="clearanceChart" height="120"></canvas>
+    </div>
+    <div class="card">
+      <h2>Median Price Trend</h2>
+      <canvas id="medianChart" height="120"></canvas>
+    </div>
+  </div>
+
+  <div class="grid-2 section-gap">
+    <div class="card">
+      <h2>Recent Auction Entries</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>Week</th>
+            <th>Suburb</th>
+            <th>Type</th>
+            <th>Auctions</th>
+            <th>Sold</th>
+            <th>Clearance</th>
+            <th>Median</th>
+          </tr>
+        </thead>
+        <tbody id="auctionTableBody"></tbody>
+      </table>
+    </div>
+
+    <div class="card">
+      <h2>Property Watchlist</h2>
+      <div class="form-grid" style="grid-template-columns:1fr 1fr;">
+        <div>
+          <label>Address</label>
+          <input id="watchAddress" placeholder="23 Budd St" />
+        </div>
+        <div>
+          <label>Suburb</label>
+          <input id="watchSuburb" placeholder="Collingwood" />
+        </div>
+        <div>
+          <label>Status</label>
+          <select id="watchStatus">
+            <option value="watching">Watching</option>
+            <option value="under_offer">Under offer</option>
+            <option value="owned">Owned</option>
+            <option value="passed_in">Passed in</option>
+          </select>
+        </div>
+        <div>
+          <label>Target / last price</label>
+          <input id="watchPrice" type="number" min="0" placeholder="2200000" />
+        </div>
+      </div>
+      <div class="section-gap">
+        <label>Notes</label>
+        <textarea id="watchNotes" placeholder="Tenant, zoning, expected yield, development angle, etc."></textarea>
+      </div>
+      <div class="actions section-gap">
+        <button id="saveWatchBtn">Save Watchlist Item</button>
+        <button class="secondary" id="clearWatchFormBtn">Clear Form</button>
+        <button class="ghost" id="refreshWatchBtn">Refresh Watchlist</button>
+      </div>
+      <table class="section-gap">
+        <thead>
+          <tr>
+            <th>Address</th>
+            <th>Status</th>
+            <th>Suburb</th>
+            <th>Price</th>
+            <th>Notes</th>
+          </tr>
+        </thead>
+        <tbody id="watchTableBody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="grid-2 section-gap">
+    <div class="card">
+      <h2>Deal Stress Tester</h2>
+      <div class="form-grid" style="grid-template-columns:1fr 1fr;">
+        <div><label>Purchase price</label><input id="purchasePrice" type="number" value="950000" /></div>
+        <div><label>Weekly rent</label><input id="weeklyRent" type="number" value="720" /></div>
+        <div><label>Interest rate %</label><input id="interestRate" type="number" step="0.1" value="6.5" /></div>
+        <div><label>Deposit %</label><input id="depositPct" type="number" step="0.1" value="20" /></div>
+        <div><label>Other annual costs</label><input id="annualCosts" type="number" value="12000" /></div>
+        <div><label>Growth assumption %</label><input id="growthPct" type="number" step="0.1" value="4.5" /></div>
+      </div>
+      <div class="actions section-gap">
+        <button id="runStressBtn">Run Test</button>
+        <button class="secondary" id="resetStressBtn">Reset</button>
+        <button class="ghost" id="copySqlBtn">Copy SQL Setup</button>
+      </div>
+      <div class="list section-gap" id="stressOutput"></div>
+    </div>
+
+    <div class="card">
+      <h2>Supabase Setup SQL</h2>
+      <p class="small">Run this once in the SQL editor. It creates two tables plus user-based RLS policies.</p>
+      <pre class="mono" id="sqlBlock"></pre>
+    </div>
+  </div>
+</div>
+
+<script type="module">
+  import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+
+  const LS_KEYS = {
+    config: "melb_tracker_supabase_config_v1",
+    auctions: "melb_tracker_auctions_v1",
+    watchlist: "melb_tracker_watchlist_v1"
+  };
+
+  const SQL_SETUP = `create extension if not exists pgcrypto;
+
+create table if not exists public.auction_entries (
+  id uuid primary key default gen_random_uuid(),
+  owner_id uuid not null default auth.uid(),
+  week_ending date not null,
+  suburb text not null,
+  property_type text not null default 'mixed',
+  auctions integer not null default 0 check (auctions >= 0),
+  sold integer not null default 0 check (sold >= 0),
+  median_price bigint,
+  source text,
+  notes text,
+  created_at timestamptz not null default now()
+);
+
+create table if not exists public.watchlist_properties (
+  id uuid primary key default gen_random_uuid(),
+  owner_id uuid not null default auth.uid(),
+  address text not null,
+  suburb text,
+  status text not null default 'watching',
+  target_price bigint,
+  notes text,
+  created_at timestamptz not null default now()
+);
+
+alter table public.auction_entries enable row level security;
+alter table public.watchlist_properties enable row level security;
+
+create policy if not exists "auction select own"
+on public.auction_entries for select
+to authenticated
+using (auth.uid() = owner_id);
+
+create policy if not exists "auction insert own"
+on public.auction_entries for insert
+to authenticated
+with check (auth.uid() = owner_id);
+
+create policy if not exists "auction update own"
+on public.auction_entries for update
+to authenticated
+using (auth.uid() = owner_id)
+with check (auth.uid() = owner_id);
+
+create policy if not exists "auction delete own"
+on public.auction_entries for delete
+to authenticated
+using (auth.uid() = owner_id);
+
+create policy if not exists "watchlist select own"
+on public.watchlist_properties for select
+to authenticated
+using (auth.uid() = owner_id);
+
+create policy if not exists "watchlist insert own"
+on public.watchlist_properties for insert
+to authenticated
+with check (auth.uid() = owner_id);
+
+create policy if not exists "watchlist update own"
+on public.watchlist_properties for update
+to authenticated
+using (auth.uid() = owner_id)
+with check (auth.uid() = owner_id);
+
+create policy if not exists "watchlist delete own"
+on public.watchlist_properties for delete
+to authenticated
+using (auth.uid() = owner_id);
+
+create index if not exists auction_entries_owner_week_idx
+  on public.auction_entries (owner_id, week_ending desc);
+
+create index if not exists auction_entries_owner_suburb_idx
+  on public.auction_entries (owner_id, suburb);
+
+create index if not exists watchlist_owner_created_idx
+  on public.watchlist_properties (owner_id, created_at desc);`;
+
+  let supabase = null;
+  let isConnected = false;
+  let isAuthenticated = false;
+  let auctions = [];
+  let watchlist = [];
+  let clearanceChart = null;
+  let medianChart = null;
+
+  const $ = (id) => document.getElementById(id);
+
+  function saveConfig() {
+    const cfg = {
+      url: $("supabaseUrl").value.trim(),
+      key: $("supabaseKey").value.trim()
+    };
+    localStorage.setItem(LS_KEYS.config, JSON.stringify(cfg));
+    setStatus("Configuration saved locally", "local");
+  }
+
+  function loadConfig() {
+    const cfg = JSON.parse(localStorage.getItem(LS_KEYS.config) || "{}");
+    if (cfg.url) $("supabaseUrl").value = cfg.url;
+    else $("supabaseUrl").value = "https://rygckxqyqaogsedmpbpr.supabase.co";
+    if (cfg.key) $("supabaseKey").value = cfg.key;
+    else $("supabaseKey").value = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJ5Z2NreHF5cWFvZ3NlZG1wYnByIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzY4MzM1NTIsImV4cCI6MjA5MjQwOTU1Mn0.xhExNIPvHYvlyqyaCPeWNGME4X8TZc2S7gCy0t4HqpQ";
+  }
+
+  function setStatus(text, mode = "local", authText = null) {
+    $("connectionStatus").textContent = text;
+    $("statusDot").className = "statusdot " + (mode === "connected" ? "connected" : "local");
+    $("storageModeText").textContent = mode === "connected" ? "Supabase" : "Local";
+    if (authText) $("authStateBadge").textContent = authText;
+  }
+
+  function localLoad() {
+    auctions = JSON.parse(localStorage.getItem(LS_KEYS.auctions) || "[]");
+    watchlist = JSON.parse(localStorage.getItem(LS_KEYS.watchlist) || "[]");
+  }
+
+  function localSave() {
+    localStorage.setItem(LS_KEYS.auctions, JSON.stringify(auctions));
+    localStorage.setItem(LS_KEYS.watchlist, JSON.stringify(watchlist));
+  }
+
+  function formatCurrency(n) {
+    if (n === null || n === undefined || n === "") return "—";
+    return "$" + Number(n).toLocaleString();
+  }
+
+  function fmtPct(n) {
+    if (n === null || n === undefined || Number.isNaN(Number(n))) return "—";
+    return Number(n).toFixed(1) + "%";
+  }
+
+  function clearanceRate(row) {
+    const auctions = Number(row.auctions || 0);
+    const sold = Number(row.sold || 0);
+    if (!auctions) return 0;
+    return (sold / auctions) * 100;
+  }
+
+  function toISODate(date) {
+    const d = new Date(date);
+    if (Number.isNaN(d.getTime())) return "";
+    return d.toISOString().slice(0, 10);
+  }
+
+  function getSuburbs() {
+    const names = [...new Set(auctions.map(x => x.suburb).filter(Boolean))].sort((a,b)=>a.localeCompare(b));
+    return names;
+  }
+
+  function populateSuburbFilter() {
+    const suburbs = getSuburbs();
+    const current = $("suburbFilter").value;
+    const options = suburbs.length ? suburbs : ["All suburbs"];
+    $("suburbFilter").innerHTML = options.map(name => `<option value="${name}">${name}</option>`).join("");
+    if (suburbs.includes(current)) $("suburbFilter").value = current;
+  }
+
+  function getFilteredAuctions() {
+    const suburb = $("suburbFilter").value;
+    const weeks = Number($("weeksLookback").value || 12);
+    let rows = [...auctions].sort((a,b)=> String(a.week_ending).localeCompare(String(b.week_ending)));
+    if (suburb && suburb !== "All suburbs") rows = rows.filter(r => r.suburb === suburb);
+    return rows.slice(-weeks);
+  }
+
+  function summariseSuburb() {
+    const rows = getFilteredAuctions();
+    if (!rows.length) {
+      $("suburbSummary").innerHTML = `<div class="row"><strong>No data yet</strong><span class="small">Add your first weekly suburb result, or load the demo rows.</span></div>`;
+      $("avgClearanceText").textContent = "—";
+      $("latestWeekText").textContent = "—";
+      return;
+    }
+    const latest = rows[rows.length - 1];
+    const recent = rows.slice(-4);
+    const avg4 = recent.reduce((sum, r) => sum + clearanceRate(r), 0) / recent.length;
+    const latestMedian = latest.median_price ? formatCurrency(latest.median_price) : "—";
+    $("avgClearanceText").textContent = fmtPct(avg4);
+    $("latestWeekText").textContent = latest.week_ending || "—";
+    $("suburbSummary").innerHTML = [
+      { title: "Latest clearance", value: fmtPct(clearanceRate(latest)) },
+      { title: "Latest median", value: latestMedian },
+      { title: "Latest auction count", value: Number(latest.auctions || 0).toLocaleString() },
+      { title: "Latest sold count", value: Number(latest.sold || 0).toLocaleString() }
+    ].map(x => `<div class="row"><strong>${x.title}</strong><span class="small">${x.value}</span></div>`).join("");
+  }
+
+  function renderAuctionTable() {
+    const body = $("auctionTableBody");
+    const rows = [...auctions].sort((a,b)=> String(b.week_ending).localeCompare(String(a.week_ending))).slice(0, 12);
+    if (!rows.length) {
+      body.innerHTML = `<tr><td colspan="7" class="small">No auction entries saved yet.</td></tr>`;
+      return;
+    }
+    body.innerHTML = rows.map(r => `
+      <tr>
+        <td>${r.week_ending || "—"}</td>
+        <td><strong>${r.suburb || ""}</strong></td>
+        <td>${r.property_type || "mixed"}</td>
+        <td>${Number(r.auctions || 0)}</td>
+        <td>${Number(r.sold || 0)}</td>
+        <td>${fmtPct(clearanceRate(r))}</td>
+        <td>${formatCurrency(r.median_price)}</td>
+      </tr>
+    `).join("");
+  }
+
+  function renderWatchTable() {
+    $("watchCountText").textContent = String(watchlist.length);
+    const body = $("watchTableBody");
+    if (!watchlist.length) {
+      body.innerHTML = `<tr><td colspan="5" class="small">No watchlist items yet.</td></tr>`;
+      return;
+    }
+    body.innerHTML = [...watchlist].sort((a,b)=> String(b.created_at || "").localeCompare(String(a.created_at || ""))).map(w => {
+      const badgeClass = w.status === "owned" ? "ok" : w.status === "under_offer" ? "warn" : w.status === "passed_in" ? "bad" : "";
+      return `
+      <tr>
+        <td><strong>${w.address}</strong></td>
+        <td><span class="badge ${badgeClass}">${(w.status || "watching").replace("_"," ")}</span></td>
+        <td>${w.suburb || "—"}</td>
+        <td>${formatCurrency(w.target_price)}</td>
+        <td>${w.notes || "—"}</td>
+      </tr>`;
+    }).join("");
+  }
+
+  function makeLineChart(canvasId, label, labels, data, percent = false) {
+    const chartRef = canvasId === "clearanceChart" ? clearanceChart : medianChart;
+    if (chartRef) chartRef.destroy();
+    const ctx = $(canvasId);
+    const chart = new Chart(ctx, {
+      type: "line",
+      data: {
+        labels,
+        datasets: [{ label, data, tension: .25, borderWidth: 2, pointRadius: 2, fill: false }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: true,
+        plugins: { legend: { display: true } },
+        scales: {
+          x: { ticks: { maxTicksLimit: 8 } },
+          y: percent
+            ? { beginAtZero: true, suggestedMax: 100, ticks: { callback: (v) => v + "%" } }
+            : { beginAtZero: false, ticks: { callback: (v) => "$" + Number(v).toLocaleString() } }
+        }
+      }
+    });
+    if (canvasId === "clearanceChart") clearanceChart = chart;
+    if (canvasId === "medianChart") medianChart = chart;
+  }
+
+  function renderCharts() {
+    const rows = getFilteredAuctions();
+    if (!rows.length) {
+      makeLineChart("clearanceChart", "Clearance %", [], [], true);
+      makeLineChart("medianChart", "Median price", [], [], false);
+      return;
+    }
+    makeLineChart(
+      "clearanceChart",
+      "Clearance %",
+      rows.map(r => r.week_ending),
+      rows.map(r => Number(clearanceRate(r).toFixed(1))),
+      true
+    );
+    makeLineChart(
+      "medianChart",
+      "Median price",
+      rows.filter(r => r.median_price).map(r => r.week_ending),
+      rows.filter(r => r.median_price).map(r => Number(r.median_price)),
+      false
+    );
+  }
+
+  function renderAll() {
+    populateSuburbFilter();
+    summariseSuburb();
+    renderAuctionTable();
+    renderWatchTable();
+    renderCharts();
+  }
+
+  function getAuctionFormData() {
+    return {
+      week_ending: $("weekEnding").value,
+      suburb: $("suburbInput").value.trim(),
+      property_type: $("propertyType").value,
+      auctions: Number($("auctionCount").value || 0),
+      sold: Number($("soldCount").value || 0),
+      median_price: $("medianPrice").value ? Number($("medianPrice").value) : null,
+      source: $("sourceInput").value.trim() || null,
+      notes: $("auctionNotes").value.trim() || null,
+      created_at: new Date().toISOString()
+    };
+  }
+
+  function getWatchFormData() {
+    return {
+      address: $("watchAddress").value.trim(),
+      suburb: $("watchSuburb").value.trim() || null,
+      status: $("watchStatus").value,
+      target_price: $("watchPrice").value ? Number($("watchPrice").value) : null,
+      notes: $("watchNotes").value.trim() || null,
+      created_at: new Date().toISOString()
+    };
+  }
+
+  function clearAuctionForm() {
+    $("weekEnding").value = "";
+    $("suburbInput").value = "";
+    $("propertyType").value = "mixed";
+    $("auctionCount").value = "0";
+    $("soldCount").value = "0";
+    $("medianPrice").value = "";
+    $("sourceInput").value = "";
+    $("auctionNotes").value = "";
+  }
+
+  function clearWatchForm() {
+    $("watchAddress").value = "";
+    $("watchSuburb").value = "";
+    $("watchStatus").value = "watching";
+    $("watchPrice").value = "";
+    $("watchNotes").value = "";
+  }
+
+  async function connectSupabase() {
+    const url = $("supabaseUrl").value.trim();
+    const key = $("supabaseKey").value.trim();
+    if (!url || !key) {
+      setStatus("Missing Supabase URL or key. Still in local mode.", "local");
+      return;
+    }
+    try {
+      supabase = createClient(url, key);
+      const { data: { session }, error } = await supabase.auth.getSession();
+      if (error) throw error;
+      isConnected = true;
+      isAuthenticated = !!session;
+      setStatus(
+        isAuthenticated ? "Connected to Supabase and signed in" : "Connected to Supabase. Sign in to read/write protected rows.",
+        "connected",
+        isAuthenticated ? "Signed in" : "Not signed in"
+      );
+      await loadRemoteData();
+      supabase.auth.onAuthStateChange(async (_event, session) => {
+        isAuthenticated = !!session;
+        setStatus(
+          isAuthenticated ? "Connected to Supabase and signed in" : "Connected to Supabase. Sign in to read/write protected rows.",
+          "connected",
+          isAuthenticated ? "Signed in" : "Not signed in"
+        );
+        await loadRemoteData();
+      });
+    } catch (err) {
+      console.error(err);
+      isConnected = false;
+      setStatus("Could not connect. Using local mode instead.", "local");
+      localLoad();
+      renderAll();
+    }
+  }
+
+  async function sendMagicLink() {
+    if (!supabase) {
+      await connectSupabase();
+      if (!supabase) return;
+    }
+    const email = $("authEmail").value.trim();
+    if (!email) {
+      alert("Enter your email first.");
+      return;
+    }
+    const redirectTo = window.location.href.startsWith("http") ? window.location.href : undefined;
+    const { error } = await supabase.auth.signInWithOtp({ email, options: { emailRedirectTo: redirectTo } });
+    if (error) {
+      alert("Magic link error: " + error.message);
+      return;
+    }
+    alert("Magic link sent. Open your email and come back to this tracker.");
+  }
+
+  async function loadRemoteData() {
+    if (!supabase || !isAuthenticated) {
+      localLoad();
+      renderAll();
+      return;
+    }
+    const [auctionRes, watchRes] = await Promise.all([
+      supabase.from("auction_entries").select("*").order("week_ending", { ascending: true }),
+      supabase.from("watchlist_properties").select("*").order("created_at", { ascending: false })
+    ]);
+    if (auctionRes.error || watchRes.error) {
+      console.error(auctionRes.error || watchRes.error);
+      setStatus("Connected, but could not read tables yet. Check SQL setup and RLS.", "connected", isAuthenticated ? "Signed in" : "Not signed in");
+      localLoad();
+      renderAll();
+      return;
+    }
+    auctions = auctionRes.data || [];
+    watchlist = watchRes.data || [];
+    renderAll();
+  }
+
+  async function saveAuctionEntry() {
+    const row = getAuctionFormData();
+    if (!row.week_ending || !row.suburb) {
+      alert("Please enter at least a week ending date and suburb.");
+      return;
+    }
+    if (row.sold > row.auctions) {
+      alert("Sold count cannot be greater than auction count.");
+      return;
+    }
+    if (isConnected && isAuthenticated && supabase) {
+      const { error } = await supabase.from("auction_entries").insert(row);
+      if (error) {
+        alert("Save failed in Supabase: " + error.message);
+        return;
+      }
+      await loadRemoteData();
+    } else {
+      auctions.push({ id: crypto.randomUUID(), ...row });
+      localSave();
+      renderAll();
+    }
+    clearAuctionForm();
+  }
+
+  async function saveWatchlistItem() {
+    const row = getWatchFormData();
+    if (!row.address) {
+      alert("Please enter an address.");
+      return;
+    }
+    if (isConnected && isAuthenticated && supabase) {
+      const { error } = await supabase.from("watchlist_properties").insert(row);
+      if (error) {
+        alert("Save failed in Supabase: " + error.message);
+        return;
+      }
+      await loadRemoteData();
+    } else {
+      watchlist.push({ id: crypto.randomUUID(), ...row });
+      localSave();
+      renderAll();
+    }
+    clearWatchForm();
+  }
+
+  function exportCsv() {
+    const headers = ["week_ending","suburb","property_type","auctions","sold","clearance_rate","median_price","source","notes"];
+    const rows = [...auctions].sort((a,b)=> String(b.week_ending).localeCompare(String(a.week_ending)));
+    const lines = [
+      headers.join(","),
+      ...rows.map(r => [
+        r.week_ending,
+        csv(r.suburb),
+        csv(r.property_type),
+        r.auctions,
+        r.sold,
+        clearanceRate(r).toFixed(1),
+        r.median_price ?? "",
+        csv(r.source || ""),
+        csv(r.notes || "")
+      ].join(","))
+    ];
+    const blob = new Blob([lines.join("\n")], { type: "text/csv;charset=utf-8;" });
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = "melbourne_auction_tracker.csv";
+    a.click();
+    URL.revokeObjectURL(a.href);
+  }
+
+  function csv(v) {
+    const text = String(v ?? "");
+    return `"${text.replace(/"/g, '""')}"`;
+  }
+
+  function seedDemo() {
+    const demo = [
+      ["2026-02-28","Reservoir","mixed",28,18,915000,"Weekly tally","Good first-home demand"],
+      ["2026-03-07","Reservoir","mixed",30,22,925000,"Weekly tally","More competitive bidding"],
+      ["2026-03-14","Reservoir","mixed",26,19,935000,"Weekly tally","Solid depth"],
+      ["2026-03-21","Reservoir","mixed",32,24,940000,"Weekly tally","Strong finish"],
+      ["2026-03-28","Reservoir","mixed",34,27,950000,"Weekly tally","Clear rebound signal"],
+      ["2026-04-04","Doncaster","mixed",18,10,1240000,"Weekly tally","Buyer caution"],
+      ["2026-04-11","Doncaster","mixed",19,11,1255000,"Weekly tally","Mixed quality stock"],
+      ["2026-04-18","Doncaster","mixed",20,12,1260000,"Weekly tally","Slightly firmer"],
+      ["2026-04-18","Reservoir","mixed",31,23,955000,"Weekly tally","Demand still healthy"]
+    ].map(x => ({
+      id: crypto.randomUUID(),
+      week_ending: x[0], suburb: x[1], property_type: x[2], auctions: x[3], sold: x[4], median_price: x[5], source: x[6], notes: x[7], created_at: new Date().toISOString()
+    }));
+    auctions = [...auctions, ...demo];
+    localSave();
+    renderAll();
+    setStatus("Demo rows added in local mode", "local");
+  }
+
+  function runStressTest() {
+    const price = Number($("purchasePrice").value || 0);
+    const rent = Number($("weeklyRent").value || 0);
+    const rate = Number($("interestRate").value || 0) / 100;
+    const depositPct = Number($("depositPct").value || 0) / 100;
+    const annualCosts = Number($("annualCosts").value || 0);
+    const growthPct = Number($("growthPct").value || 0) / 100;
+    const loan = price * (1 - depositPct);
+    const annualRent = rent * 52;
+    const annualInterest = loan * rate;
+    const preTaxCashflow = annualRent - annualInterest - annualCosts;
+    const year3Value = price * Math.pow(1 + growthPct, 3);
+    const equity3 = year3Value - loan;
+    const rows = [
+      ["Estimated loan", formatCurrency(Math.round(loan))],
+      ["Annual rent", formatCurrency(Math.round(annualRent))],
+      ["Annual interest only", formatCurrency(Math.round(annualInterest))],
+      ["Pre-tax cashflow", (preTaxCashflow >= 0 ? "+" : "-") + formatCurrency(Math.round(Math.abs(preTaxCashflow)))],
+      ["Projected value in 3 years", formatCurrency(Math.round(year3Value))],
+      ["Approx. equity in 3 years", formatCurrency(Math.round(equity3))]
+    ];
+    $("stressOutput").innerHTML = rows.map(r => `<div class="row"><strong>${r[0]}</strong><span class="small">${r[1]}</span></div>`).join("");
+  }
+
+  function resetStressTest() {
+    $("purchasePrice").value = 950000;
+    $("weeklyRent").value = 720;
+    $("interestRate").value = 6.5;
+    $("depositPct").value = 20;
+    $("annualCosts").value = 12000;
+    $("growthPct").value = 4.5;
+    runStressTest();
+  }
+
+  async function initialLoad() {
+    loadConfig();
+    localLoad();
+    $("sqlBlock").textContent = SQL_SETUP;
+    const today = new Date();
+    $("weekEnding").value = toISODate(today);
+    renderAll();
+    runStressTest();
+  }
+
+  $("saveConfigBtn").addEventListener("click", saveConfig);
+  $("connectBtn").addEventListener("click", connectSupabase);
+  $("sendMagicLinkBtn").addEventListener("click", sendMagicLink);
+  $("saveAuctionBtn").addEventListener("click", saveAuctionEntry);
+  $("clearAuctionFormBtn").addEventListener("click", clearAuctionForm);
+  $("saveWatchBtn").addEventListener("click", saveWatchlistItem);
+  $("clearWatchFormBtn").addEventListener("click", clearWatchForm);
+  $("refreshBtn").addEventListener("click", async () => isConnected ? await loadRemoteData() : (localLoad(), renderAll()));
+  $("refreshWatchBtn").addEventListener("click", async () => isConnected ? await loadRemoteData() : (localLoad(), renderAll()));
+  $("seedDemoBtn").addEventListener("click", seedDemo);
+  $("exportCsvBtn").addEventListener("click", exportCsv);
+  $("weeksLookback").addEventListener("change", renderAll);
+  $("suburbFilter").addEventListener("change", renderAll);
+  $("runStressBtn").addEventListener("click", runStressTest);
+  $("resetStressBtn").addEventListener("click", resetStressTest);
+  $("copySqlBtn").addEventListener("click", async () => {
+    await navigator.clipboard.writeText(SQL_SETUP);
+    alert("SQL copied.");
+  });
+
+  initialLoad();
+</script>
+</body>
+</html>
