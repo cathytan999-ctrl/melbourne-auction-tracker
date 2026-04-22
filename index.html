@@ -1,0 +1,462 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Melbourne Property Trend Monitor</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    :root {
+      --bg: #f5f7fb;
+      --card: #ffffff;
+      --text: #1c2430;
+      --muted: #657183;
+      --line: #d9e0ea;
+      --accent: #0f4c81;
+      --good: #1f7a4f;
+      --warn: #9a6a00;
+      --bad: #a33131;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+    }
+    .wrap {
+      max-width: 1280px;
+      margin: 0 auto;
+      padding: 28px;
+    }
+    .hero {
+      display: grid;
+      grid-template-columns: 1.6fr 1fr;
+      gap: 18px;
+      margin-bottom: 18px;
+    }
+    .card {
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      padding: 20px;
+      box-shadow: 0 8px 24px rgba(20,30,50,0.05);
+    }
+    h1 { margin: 0 0 8px; font-size: 30px; }
+    h2 { margin: 0 0 14px; font-size: 20px; }
+    h3 { margin: 0 0 10px; font-size: 15px; color: var(--muted); font-weight: 600; text-transform: uppercase; letter-spacing: .04em; }
+    p { margin: 0; line-height: 1.5; }
+    .sub { color: var(--muted); }
+    .pillbar { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 18px; }
+    .pill {
+      border: 1px solid var(--line);
+      background: #f8fafc;
+      padding: 10px 14px;
+      border-radius: 999px;
+      font-size: 14px;
+      color: var(--text);
+    }
+    .stats {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 14px;
+      margin: 18px 0;
+    }
+    .stat {
+      background: #fbfcfe;
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      padding: 14px;
+    }
+    .stat .label { color: var(--muted); font-size: 13px; }
+    .stat .value { font-size: 26px; font-weight: 700; margin-top: 6px; }
+    .grid {
+      display: grid;
+      grid-template-columns: 2fr 1fr;
+      gap: 18px;
+      margin-bottom: 18px;
+    }
+    .controls {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 12px;
+      margin-bottom: 16px;
+    }
+    label { display: block; font-size: 12px; color: var(--muted); margin-bottom: 6px; }
+    input, select, button, textarea {
+      width: 100%;
+      padding: 12px 12px;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      font: inherit;
+      background: white;
+    }
+    button {
+      cursor: pointer;
+      background: var(--accent);
+      color: white;
+      border: none;
+      font-weight: 600;
+    }
+    button.secondary {
+      background: white;
+      color: var(--text);
+      border: 1px solid var(--line);
+    }
+    .actions {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      align-items: end;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 14px;
+    }
+    th, td {
+      padding: 12px 10px;
+      border-bottom: 1px solid var(--line);
+      text-align: left;
+      vertical-align: middle;
+    }
+    th { color: var(--muted); font-weight: 600; }
+    .tag {
+      display: inline-block;
+      padding: 6px 10px;
+      border-radius: 999px;
+      font-size: 12px;
+      font-weight: 700;
+    }
+    .good { background: #eaf7ef; color: var(--good); }
+    .warn { background: #fff5df; color: var(--warn); }
+    .bad { background: #fdeaea; color: var(--bad); }
+    .small { font-size: 13px; color: var(--muted); }
+    .footer-note { margin-top: 12px; font-size: 12px; color: var(--muted); }
+    .twocol {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 18px;
+    }
+    .list {
+      display: grid;
+      gap: 12px;
+    }
+    .list .row {
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      padding: 12px;
+      background: #fbfcfe;
+    }
+    .list .row strong { display: block; margin-bottom: 4px; }
+    textarea { min-height: 110px; resize: vertical; }
+    @media (max-width: 980px) {
+      .hero, .grid, .twocol { grid-template-columns: 1fr; }
+      .stats, .controls { grid-template-columns: 1fr 1fr; }
+    }
+    @media (max-width: 640px) {
+      .wrap { padding: 16px; }
+      .stats, .controls, .actions { grid-template-columns: 1fr; }
+      h1 { font-size: 24px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="hero">
+      <div class="card">
+        <h1>Melbourne Property Trend Monitor</h1>
+        <p class="sub">A clean dashboard template to watch price direction, compare suburbs, and stress-test rental assumptions. It starts with demo data so you can run it immediately, then replace the arrays with live feeds from your preferred provider.</p>
+        <div class="pillbar">
+          <div class="pill">Trend chart</div>
+          <div class="pill">Suburb watchlist</div>
+          <div class="pill">Manual update friendly</div>
+          <div class="pill">Printable</div>
+        </div>
+        <div class="stats">
+          <div class="stat"><div class="label">Market Direction</div><div class="value" id="marketDirection">Flat</div></div>
+          <div class="stat"><div class="label">12M Change</div><div class="value" id="twelveMonthChange">+1.2%</div></div>
+          <div class="stat"><div class="label">Peak Gap</div><div class="value" id="peakGap">-2.4%</div></div>
+          <div class="stat"><div class="label">Rental Pulse</div><div class="value" id="rentalPulse">Firm</div></div>
+        </div>
+      </div>
+      <div class="card">
+        <h3>How to use</h3>
+        <div class="list">
+          <div class="row"><strong>1. Watch the chart</strong><span class="small">Track monthly changes in house or unit trend.</span></div>
+          <div class="row"><strong>2. Update your watchlist</strong><span class="small">Store key suburbs and rank them by growth, yield, and value score.</span></div>
+          <div class="row"><strong>3. Stress test deals</strong><span class="small">Check rent, interest rate, and holding assumptions.</span></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="grid">
+      <div class="card">
+        <div class="controls">
+          <div>
+            <label for="seriesType">Series</label>
+            <select id="seriesType">
+              <option value="houses">Melbourne houses</option>
+              <option value="units">Melbourne units</option>
+            </select>
+          </div>
+          <div>
+            <label for="lookback">Lookback</label>
+            <select id="lookback">
+              <option value="12">12 months</option>
+              <option value="24" selected>24 months</option>
+              <option value="36">36 months</option>
+            </select>
+          </div>
+          <div>
+            <label for="chartMode">Chart mode</label>
+            <select id="chartMode">
+              <option value="index" selected>Index level</option>
+              <option value="change">Monthly % change</option>
+            </select>
+          </div>
+          <div class="actions">
+            <button onclick="refreshChart()">Update Chart</button>
+            <button class="secondary" onclick="window.print()">Print</button>
+          </div>
+        </div>
+        <canvas id="trendChart" height="120"></canvas>
+        <div class="footer-note">Demo data is preloaded so the file works offline except for the Chart.js library. Replace the dataset in the script block with your own monthly figures.</div>
+      </div>
+
+      <div class="card">
+        <h2>Market Notes</h2>
+        <div class="list" id="marketNotes">
+          <div class="row"><strong>Cycle view</strong><span class="small">Melbourne has been slower than several other capitals recently, which can create better entry points if rents stay resilient.</span></div>
+          <div class="row"><strong>Use together</strong><span class="small">Track both broad price indices and suburb-level medians. One tells you the cycle; the other tells you where value sits.</span></div>
+          <div class="row"><strong>Best workflow</strong><span class="small">Check monthly momentum first, then shortlist suburbs, then test the deal with your own cashflow assumptions.</span></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="twocol">
+      <div class="card">
+        <h2>Suburb Watchlist</h2>
+        <table>
+          <thead>
+            <tr>
+              <th>Suburb</th>
+              <th>Median</th>
+              <th>10Y Growth</th>
+              <th>Rent / wk</th>
+              <th>Yield</th>
+              <th>Score</th>
+            </tr>
+          </thead>
+          <tbody id="suburbBody"></tbody>
+        </table>
+      </div>
+
+      <div class="card">
+        <h2>Deal Stress Tester</h2>
+        <div class="controls" style="grid-template-columns:1fr 1fr;">
+          <div>
+            <label>Purchase price</label>
+            <input id="purchasePrice" type="number" value="950000" />
+          </div>
+          <div>
+            <label>Weekly rent</label>
+            <input id="weeklyRent" type="number" value="720" />
+          </div>
+          <div>
+            <label>Interest rate %</label>
+            <input id="interestRate" type="number" step="0.1" value="6.5" />
+          </div>
+          <div>
+            <label>Deposit %</label>
+            <input id="depositPct" type="number" step="0.1" value="20" />
+          </div>
+          <div>
+            <label>Other annual costs</label>
+            <input id="annualCosts" type="number" value="12000" />
+          </div>
+          <div>
+            <label>Growth assumption %</label>
+            <input id="growthPct" type="number" step="0.1" value="4.5" />
+          </div>
+        </div>
+        <div class="actions" style="margin-bottom:14px;">
+          <button onclick="runStressTest()">Run Test</button>
+          <button class="secondary" onclick="resetStressTest()">Reset</button>
+        </div>
+        <div class="list" id="stressOutput"></div>
+      </div>
+    </div>
+
+    <div class="twocol" style="margin-top:18px;">
+      <div class="card">
+        <h2>Data Source Checklist</h2>
+        <div class="list">
+          <div class="row"><strong>Broad market chart</strong><span class="small">Use a monthly index for Melbourne so you can see turning points earlier than quarterly medians.</span></div>
+          <div class="row"><strong>Suburb medians</strong><span class="small">Use suburb-level sales statistics to compare local pricing and turnover.</span></div>
+          <div class="row"><strong>Rental layer</strong><span class="small">Add weekly asking rent or leased rent where available, then calculate yield inside the dashboard.</span></div>
+        </div>
+      </div>
+      <div class="card">
+        <h2>Your Notes</h2>
+        <textarea placeholder="Example: Reservoir looks better than inner east on yield. Watch any rate-cut driven rebound."></textarea>
+        <div class="footer-note">This box is just for quick notes in the browser session. It does not persist unless you wire it to storage.</div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const marketData = {
+      houses: {
+        labels: [
+          '2024-04','2024-05','2024-06','2024-07','2024-08','2024-09','2024-10','2024-11','2024-12','2025-01','2025-02','2025-03',
+          '2025-04','2025-05','2025-06','2025-07','2025-08','2025-09','2025-10','2025-11','2025-12','2026-01','2026-02','2026-03'
+        ],
+        index: [100.0,100.2,100.4,100.5,100.3,100.1,100.4,100.8,101.1,101.0,101.2,101.5,101.7,101.6,101.4,101.1,100.9,100.8,101.0,101.3,101.1,101.2,101.4,101.6]
+      },
+      units: {
+        labels: [
+          '2024-04','2024-05','2024-06','2024-07','2024-08','2024-09','2024-10','2024-11','2024-12','2025-01','2025-02','2025-03',
+          '2025-04','2025-05','2025-06','2025-07','2025-08','2025-09','2025-10','2025-11','2025-12','2026-01','2026-02','2026-03'
+        ],
+        index: [100.0,100.1,100.2,100.4,100.5,100.6,100.8,101.0,101.2,101.1,101.3,101.5,101.8,102.0,102.1,102.0,101.9,102.0,102.3,102.5,102.7,102.8,103.0,103.1]
+      }
+    };
+
+    const suburbs = [
+      { suburb: 'Reservoir', median: 950000, growth10y: 6.2, rent: 620, yield: 3.4, score: 4 },
+      { suburb: 'Thomastown', median: 780000, growth10y: 5.8, rent: 580, yield: 3.9, score: 5 },
+      { suburb: 'Berwick', median: 920000, growth10y: 5.1, rent: 600, yield: 3.3, score: 3 },
+      { suburb: 'Clyde North', median: 750000, growth10y: 5.5, rent: 550, yield: 3.8, score: 4 },
+      { suburb: 'Heidelberg West', median: 860000, growth10y: 5.6, rent: 610, yield: 3.7, score: 4 }
+    ];
+
+    let trendChart;
+
+    function pctChanges(series) {
+      const out = [];
+      for (let i = 1; i < series.length; i++) {
+        out.push((((series[i] / series[i-1]) - 1) * 100).toFixed(2));
+      }
+      return out.map(Number);
+    }
+
+    function getSeries() {
+      const seriesType = document.getElementById('seriesType').value;
+      const lookback = Number(document.getElementById('lookback').value);
+      const mode = document.getElementById('chartMode').value;
+      const base = marketData[seriesType];
+      const labels = base.labels.slice(-lookback);
+      const index = base.index.slice(-lookback);
+      if (mode === 'change') {
+        return {
+          labels: labels.slice(1),
+          data: pctChanges(index),
+          label: seriesType === 'houses' ? 'Monthly change % (houses)' : 'Monthly change % (units)'
+        };
+      }
+      return {
+        labels,
+        data: index,
+        label: seriesType === 'houses' ? 'Index level (houses)' : 'Index level (units)'
+      };
+    }
+
+    function refreshChart() {
+      const { labels, data, label } = getSeries();
+      if (trendChart) trendChart.destroy();
+      trendChart = new Chart(document.getElementById('trendChart'), {
+        type: 'line',
+        data: {
+          labels,
+          datasets: [{ label, data, tension: 0.28, borderWidth: 2, pointRadius: 2, fill: false }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: true,
+          plugins: { legend: { display: true } },
+          scales: {
+            x: { ticks: { maxTicksLimit: 8 } },
+            y: { beginAtZero: false }
+          }
+        }
+      });
+      updateHeaderStats();
+    }
+
+    function updateHeaderStats() {
+      const seriesType = document.getElementById('seriesType').value;
+      const arr = marketData[seriesType].index;
+      const twelveAgo = arr[arr.length - 13];
+      const latest = arr[arr.length - 1];
+      const twelveMonth = (((latest / twelveAgo) - 1) * 100).toFixed(1);
+      const peak = Math.max(...arr);
+      const peakGap = (((latest / peak) - 1) * 100).toFixed(1);
+      document.getElementById('twelveMonthChange').textContent = `${twelveMonth > 0 ? '+' : ''}${twelveMonth}%`;
+      document.getElementById('peakGap').textContent = `${peakGap > 0 ? '+' : ''}${peakGap}%`;
+      document.getElementById('marketDirection').textContent = twelveMonth > 2 ? 'Rising' : (twelveMonth < 0 ? 'Soft' : 'Flat');
+      document.getElementById('rentalPulse').textContent = seriesType === 'houses' ? 'Firm' : 'Stable';
+    }
+
+    function renderSuburbs() {
+      const body = document.getElementById('suburbBody');
+      body.innerHTML = suburbs.map(s => {
+        const cls = s.score >= 5 ? 'good' : s.score >= 4 ? 'warn' : 'bad';
+        const txt = s.score >= 5 ? 'Strong' : s.score >= 4 ? 'Watch' : 'Neutral';
+        return `
+          <tr>
+            <td><strong>${s.suburb}</strong></td>
+            <td>$${s.median.toLocaleString()}</td>
+            <td>${s.growth10y.toFixed(1)}%</td>
+            <td>$${s.rent}</td>
+            <td>${s.yield.toFixed(1)}%</td>
+            <td><span class="tag ${cls}">${txt}</span></td>
+          </tr>`;
+      }).join('');
+    }
+
+    function runStressTest() {
+      const price = Number(document.getElementById('purchasePrice').value || 0);
+      const rent = Number(document.getElementById('weeklyRent').value || 0);
+      const rate = Number(document.getElementById('interestRate').value || 0) / 100;
+      const depositPct = Number(document.getElementById('depositPct').value || 0) / 100;
+      const annualCosts = Number(document.getElementById('annualCosts').value || 0);
+      const growthPct = Number(document.getElementById('growthPct').value || 0) / 100;
+
+      const loan = price * (1 - depositPct);
+      const annualRent = rent * 52;
+      const annualInterest = loan * rate;
+      const preTaxCashflow = annualRent - annualInterest - annualCosts;
+      const year3Value = price * Math.pow(1 + growthPct, 3);
+      const equity3 = year3Value - loan;
+
+      const rows = [
+        { title: 'Estimated loan', value: `$${loan.toLocaleString(undefined, {maximumFractionDigits: 0})}` },
+        { title: 'Annual rent', value: `$${annualRent.toLocaleString(undefined, {maximumFractionDigits: 0})}` },
+        { title: 'Annual interest only', value: `$${annualInterest.toLocaleString(undefined, {maximumFractionDigits: 0})}` },
+        { title: 'Pre-tax cashflow', value: `${preTaxCashflow >= 0 ? '+' : '-'}$${Math.abs(preTaxCashflow).toLocaleString(undefined, {maximumFractionDigits: 0})}` },
+        { title: 'Projected value in 3 years', value: `$${year3Value.toLocaleString(undefined, {maximumFractionDigits: 0})}` },
+        { title: 'Approx. equity in 3 years', value: `$${equity3.toLocaleString(undefined, {maximumFractionDigits: 0})}` }
+      ];
+
+      document.getElementById('stressOutput').innerHTML = rows.map(r => `
+        <div class="row"><strong>${r.title}</strong><span class="small">${r.value}</span></div>
+      `).join('');
+    }
+
+    function resetStressTest() {
+      document.getElementById('purchasePrice').value = 950000;
+      document.getElementById('weeklyRent').value = 720;
+      document.getElementById('interestRate').value = 6.5;
+      document.getElementById('depositPct').value = 20;
+      document.getElementById('annualCosts').value = 12000;
+      document.getElementById('growthPct').value = 4.5;
+      runStressTest();
+    }
+
+    renderSuburbs();
+    refreshChart();
+    runStressTest();
+  </script>
+</body>
+</html>
