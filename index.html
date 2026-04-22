@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Melbourne Dashboard</title>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body style="font-family: Arial; padding:20px">
+
+<h2>Melbourne Suburb Dashboard</h2>
+
+<label>Suburb:</label>
+<select id="suburb"></select>
+
+<button onclick="loadData()">Load</button>
+
+<h3>Results</h3>
+<div id="output"></div>
+
+<script>
+const supabase = supabase.createClient(
+  "https://rygckxqyqaogsedmpbpr.supabase.co",
+  "YOUR_ANON_KEY_HERE"
+);
+
+async function init() {
+  const { data } = await supabase
+    .from("auction_suburb_history")
+    .select("suburb");
+
+  const unique = [...new Set(data.map(d => d.suburb))];
+
+  const dropdown = document.getElementById("suburb");
+  unique.forEach(s => {
+    const opt = document.createElement("option");
+    opt.value = s;
+    opt.textContent = s;
+    dropdown.appendChild(opt);
+  });
+}
+
+async function loadData() {
+  const suburb = document.getElementById("suburb").value;
+
+  const { data } = await supabase
+    .from("auction_suburb_history")
+    .select("*")
+    .eq("suburb", suburb)
+    .order("week_ending", { ascending: false });
+
+  let html = "<table border='1' cellpadding='5'><tr><th>Week</th><th>Auctions</th><th>Sold</th><th>Clearance %</th></tr>";
+
+  data.forEach(r => {
+    const clearance = r.auctions ? (r.sold / r.auctions * 100).toFixed(1) : "-";
+    html += `<tr>
+      <td>${r.week_ending}</td>
+      <td>${r.auctions}</td>
+      <td>${r.sold}</td>
+      <td>${clearance}%</td>
+    </tr>`;
+  });
+
+  html += "</table>";
+
+  document.getElementById("output").innerHTML = html;
+}
+
+init();
+</script>
+
+</body>
+</html>
